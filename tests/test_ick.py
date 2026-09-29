@@ -15,7 +15,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from ick import transcript  # noqa: E402
+from ick import learn, rules, transcript  # noqa: E402
 
 # Probabilities the fake judge returns for every question id.
 FAKE_PROBS = {"unrequested_file": 0.95, "padding": 0.95}
@@ -24,6 +24,7 @@ FAKE_PROBS = {"unrequested_file": 0.95, "padding": 0.95}
 class FakeJudge(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["content-length"])))
+        FakeJudge.last_state = body["state"]
         answers = {q: {"type": "noul", "noul": FAKE_PROBS.get(q, 0.1)} for q in body["questions"]}
         data = json.dumps({"answers": answers}).encode()
         self.send_response(200)
@@ -82,8 +83,22 @@ class IckTest(unittest.TestCase):
         return {"hook_event_name": "PostToolUse", "tool_name": "Write", "tool_input": {"file_path": "PLAN.md", "content": content}}
 
     def test_toggle_flips_on_and_off(self):
-        self.assertIn("ON", self.run_script("toggle.py").stdout)
+        on = self.run_script("toggle.py").stdout
+        self.assertIn("ON", on)
+        self.assertNotIn("WARNING", on)
         self.assertIn("OFF", self.run_script("toggle.py").stdout)
+
+    def test_toggle_warns_when_judge_is_down(self):
+        env = {**self.env, "ICK_JEV_URL": "http://127.0.0.1:9"}
+        self.assertIn("not answering", self.run_script("toggle.py", env=env).stdout)
+
+    def test_long_writes_are_cut_to_start_and_end(self):
+        self.run_script("toggle.py")
+        FakeJudge.last_state = None
+        self.hook(self.write_event("A" * 5000 + "Z" * 5000))
+        wrote = FakeJudge.last_state["what_claude_wrote"]
+        self.assertLess(len(wrote), 1500)
+        self.assertTrue(wrote.startswith("A") and wrote.endswith("Z"))
 
     def test_silent_when_off(self):
         self.assertIsNone(self.hook(self.write_event()))
@@ -94,6 +109,18 @@ class IckTest(unittest.TestCase):
         context = out["hookSpecificOutput"]["additionalContext"]
         self.assertIn("unrequested_file", context)
         self.assertNotIn("scope_creep", context)
+
+    def test_new_file_rule_skips_edits(self):
+        self.run_script("toggle.py")
+        edit = {"hook_event_name": "PostToolUse", "tool_name": "Edit", "tool_input": {"old_string": "a", "new_string": "b"}}
+        self.assertIsNone(self.hook(edit))
+
+    def test_every_judgment_is_logged(self):
+        self.run_script("toggle.py")
+        self.hook(self.write_event())
+        rows = [json.loads(l) for l in (self.tmp / "home" / "decisions.jsonl").read_text().splitlines()]
+        self.assertEqual(rows[-1]["event"], "PostToolUse")
+        self.assertTrue(rows[-1]["flagged"])
 
     def test_reply_flag_is_shown_to_user(self):
         self.run_script("toggle.py")
@@ -135,6 +162,38 @@ class TranscriptTest(unittest.TestCase):
         self.assertEqual(pairs[1]["user_reply"], "no, just the readme")
         self.assertEqual(transcript.last_user_prompt(path), "no, just the readme")
         self.assertEqual(transcript.last_assistant_text(path), "")
+
+
+class RulesTest(unittest.TestCase):
+    def test_default_rules_are_valid(self):
+        from ick import config
+        self.assertEqual(rules.validate(config.DEFAULT_RULES), [])
+
+    def test_bad_rules_are_caught(self):
+        path = pathlib.Path(tempfile.mkdtemp()) / "rules.json"
+        path.write_text(json.dumps({"rules": [{"id": "a", "on": "chat", "question": "", "threshold": 2}]}))
+        self.assertEqual(len(rules.validate(path)), 3)
+        path.write_text("{not json")
+        self.assertIn("cannot read", rules.validate(path)[0])
+
+
+class ExportTest(unittest.TestCase):
+    def test_labels_become_kev_records(self):
+        home = pathlib.Path(tempfile.mkdtemp())
+        (home / "labels.jsonl").write_text("\n".join(json.dumps(l) for l in [
+            {"user_reply": "too long, just the answer", "claude_text": "Here is a long essay.", "label": "slop", "by": "you"},
+            {"user_reply": "it crashes on start", "claude_text": "Fixed the import.", "label": "bug", "by": "you"},
+        ]))
+        os.environ["ICK_HOME"] = str(home)
+        try:
+            out = learn.export()
+        finally:
+            del os.environ["ICK_HOME"]
+        records = [json.loads(line) for line in out.open()]
+        self.assertEqual(records[0]["questions"]["about_slop"]["label"], True)
+        self.assertEqual(records[1]["questions"]["unhappy"]["label"], True)
+        self.assertEqual(records[1]["questions"]["about_slop"]["label"], False)
+        self.assertEqual(records[0]["questions"]["unhappy"]["instructions"], learn.SORT_QUESTIONS["unhappy"])
 
 
 if __name__ == "__main__":

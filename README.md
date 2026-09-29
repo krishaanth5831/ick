@@ -4,7 +4,7 @@ A Claude Code plugin that catches AI slop, using your own definition of slop.
 
 Everyone finds different things sloppy. Some people hate long answers, some hate extra files nobody asked for, some hate comments that restate the code. ick doesn't guess. It reads your past Claude Code chats, finds the moments you pushed back, and turns them into your personal rulebook. From then on, a small, fast judge model checks what Claude writes against those rules.
 
-> **Status: early scaffold.** The on/off switch, the hook, the judge client and the chat scan work and are tested. Learning your rulebook from the scan is not built yet, so for now ick uses the starter rules in `rules/default.json`, and it only warns. It never blocks.
+> **Status: early, warn-only.** Tested end to end in live Claude Code sessions with Kev-0.8B as the judge: both hooks fire, every judgment is logged, and `/ick:learn` builds a valid personal rulebook. It does not catch much yet. Out of the box, Kev-0.8B scores slop only a little higher than normal replies (about 0.45 against 0.35), so with the starter thresholds of 0.8 nothing gets flagged. The next steps are tuning thresholds on logged decisions and fine-tuning Kev on labelled examples. ick never blocks, it only warns.
 
 ## How it works
 
@@ -16,7 +16,7 @@ Everyone finds different things sloppy. Some people hate long answers, some hate
                                ▼
                          your slop moments
                                │
-                           condense (not built yet)
+                         condense  (/ick:learn)
                                ▼
                     your rulebook: 5 to 10 slop categories,
                     each with a real example from your history
@@ -30,7 +30,7 @@ Everyone finds different things sloppy. Some people hate long answers, some hate
 
 1. **Scan.** Claude Code keeps every session as a transcript in `~/.claude/projects/`. ick pairs each Claude reply with the message you sent next. Interrupting Claude, denying a tool call, or replying "no, too long" is a label you already gave for free.
 2. **Sort.** The judge answers two yes/no questions per pair: were you unhappy, and was it about style or quality rather than a bug? The second question keeps "that's broken" out of your slop rules.
-3. **Condense.** Claude groups your slop moments into a short rulebook. Complaints you repeated count more. *(Not built yet.)*
+3. **Condense.** `/ick:learn` runs scan and sort, then has Claude group your slop moments into a short rulebook in `~/.ick/rules.json` and validate it. Complaints you repeated count more.
 4. **Enforce.** Each rule becomes a question for the judge. When Claude writes a file or ends a reply, ick asks every rule at once and reports the ones over their threshold.
 
 ## The judge
@@ -41,9 +41,9 @@ You can point ick at:
 
 | Judge | Cost | Notes |
 |---|---|---|
+| [Kev](https://github.com/jaredpalmer/kev) (recommended) | Free, runs locally | Apache-2.0. Kev-0.8B runs on a 6 GB NVIDIA GPU or Apple Silicon. Reads long text. Can be fine-tuned on your own labels. |
 | [TypeSafe Jev](https://docs.typesafe.ai/api) | Paid per input token | Hosted. Waitlist access. |
-| [Laya](https://github.com/NandhaKishorM/laya) | Free, runs locally | Apache-2.0. `pip install "laya[serve]"`, runs on CPU. |
-| [Kev](https://github.com/jaredpalmer/kev) | Free, runs locally | Apache-2.0. Wants a GPU or Apple Silicon. |
+| [Laya](https://github.com/NandhaKishorM/laya) | Free, runs locally | Apache-2.0. Runs on CPU, but its English model reads only 512 tokens. Not tested with ick. |
 
 A local judge also means your chats never leave your machine.
 
@@ -58,38 +58,46 @@ Requires Claude Code and `python3`. No other dependencies.
 /plugin install ick@ick
 ```
 
-Then tell ick where the judge is. For example, a local Laya server:
+Then run a judge. Kev-0.8B on Linux with an NVIDIA GPU (needs [uv](https://docs.astral.sh/uv/); the first install downloads about 7 GB):
 
 ```bash
-pip install "laya[serve]"
-LAYA_HOST=127.0.0.1 LAYA_MODELS=english laya-serve
+git clone https://github.com/jaredpalmer/kev.git && cd kev
+uv sync --extra serve
+uv pip install "flash-linear-attention==0.5.2" "triton>=3.7.1"
+uv run --extra serve python -m kev.serve --run jaredpalmer/kev-0.8b --port 8009
 ```
 
-and in `~/.claude/settings.json`:
+It holds about 4.5 GB of GPU memory while running. Keep it running while you use Claude Code; if it's down, ick stays silent and `/ick` warns you.
+
+Point ick at it in `~/.claude/settings.json`:
 
 ```json
-{ "env": { "ICK_JEV_URL": "http://127.0.0.1:8000" } }
+{ "env": { "ICK_JEV_URL": "http://127.0.0.1:8009" } }
 ```
 
-Use the port your server prints. For TypeSafe, set `ICK_JEV_URL` to their API base and add `ICK_JEV_KEY`.
+For TypeSafe instead, set `ICK_JEV_URL` to their API base and add `ICK_JEV_KEY`.
 
 ## Use
 
 ```
-/ick     turn ick on for this project
-/ick     run it again to turn it off
+/ick          turn ick on for this project (checks the judge is answering)
+/ick          run it again to turn it off
+/ick:learn    build your personal rulebook from your past chats
 ```
 
-Learning from your history (run from the ick folder):
+The steps behind `/ick:learn`, plus labelling for fine-tuning (run from the ick folder):
 
 ```bash
-python3 -m ick scan    # pairs your chats into ~/.ick/pairs.jsonl
-python3 -m ick sort    # keeps the slop complaints in ~/.ick/slop.jsonl
+python3 -m ick scan     # pair your chats             -> ~/.ick/pairs.jsonl
+python3 -m ick sort     # judge scores every pair     -> ~/.ick/slop.jsonl
+python3 -m ick label    # label pairs by hand         -> ~/.ick/labels.jsonl
+python3 -m ick export   # labels as Kev training data -> ~/.ick/kev/records.jsonl
+python3 -m ick check    # validate your rulebook
 ```
 
 ## Your data
 
-Everything personal lives in `~/.ick/`: the on/off state, the scanned pairs, your rulebook and an error log. None of it goes in any repo. Delete the folder to reset ick completely. Set `ICK_HOME` to move it.
+Everything personal lives in `~/.ick/`: the on/off state, the scanned pairs, your labels and rulebook, a log of every judgment (`decisions.jsonl`, for tuning thresholds) and an error log. None of it goes in any repo. Delete the folder to reset ick completely. Set `ICK_HOME` to move it.
 
 ick fails open: if it's off, has no judge, or hits an error, Claude carries on as normal and the error goes to `~/.ick/hook.log`.
 

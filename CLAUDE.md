@@ -15,3 +15,4 @@ Claude Code plugin that judges Claude's output for slop. See README.md.
 - The hook must fail open: exit 0 with no output on any error, and log it to `ICK_HOME/hook.log`.
 - Nothing personal in the repo. Mined chats, rulebooks and state live in `ICK_HOME` (default `~/.ick`). Test fixtures are synthetic.
 - Run tests with `python3 -m unittest discover tests`.
+- The installed plugin is a cached copy keyed on version. After changing plugin files, bump `version` in both `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`, commit, then run `claude plugin marketplace update ick && claude plugin update ick@ick`.
