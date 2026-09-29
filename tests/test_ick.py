@@ -115,6 +115,13 @@ class IckTest(unittest.TestCase):
         edit = {"hook_event_name": "PostToolUse", "tool_name": "Edit", "tool_input": {"old_string": "a", "new_string": "b"}}
         self.assertIsNone(self.hook(edit))
 
+    def test_every_judgment_is_logged(self):
+        self.run_script("toggle.py")
+        self.hook(self.write_event())
+        rows = [json.loads(l) for l in (self.tmp / "home" / "decisions.jsonl").read_text().splitlines()]
+        self.assertEqual(rows[-1]["event"], "PostToolUse")
+        self.assertTrue(rows[-1]["flagged"])
+
     def test_reply_flag_is_shown_to_user(self):
         self.run_script("toggle.py")
         out = self.hook({"hook_event_name": "Stop", "stop_hook_active": False})

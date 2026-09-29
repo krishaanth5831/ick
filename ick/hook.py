@@ -61,6 +61,13 @@ def run(payload: dict):
         {r["id"]: r["question"] for r in active},
     )
     flagged = [f"{r['id']} ({probs[r['id']]:.0%})" for r in active if probs[r["id"]] >= r["threshold"]]
+    # Every judgment is kept so thresholds can later be tuned on real data.
+    with (config.home() / "decisions.jsonl").open("a") as f:
+        f.write(json.dumps({
+            "time": datetime.datetime.now().isoformat(timespec="seconds"),
+            "event": event, "tool": payload.get("tool_name"), "project": payload.get("cwd"),
+            "probs": {k: round(v, 3) for k, v in probs.items()}, "flagged": bool(flagged),
+        }) + "\n")
     if not flagged:
         return None
 
