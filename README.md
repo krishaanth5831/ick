@@ -4,7 +4,7 @@ A Claude Code plugin that catches AI slop, using your own definition of slop.
 
 Everyone finds different things sloppy. Some people hate long answers, some hate extra files nobody asked for, some hate comments that restate the code. ick doesn't guess. It reads your past Claude Code chats, finds the moments you pushed back, and turns them into your personal rulebook. From then on, a small, fast judge model checks what Claude writes against those rules.
 
-> **Status: early, warn-only.** Tested end to end in a live Claude Code session with Kev-0.8B as the judge: both hooks fire and every judgment is logged. It does not catch much yet. Out of the box, Kev-0.8B scores slop only a little higher than normal replies (about 0.45 against 0.35), so with the starter thresholds of 0.8 nothing gets flagged. The next steps are tuning thresholds on logged decisions and fine-tuning Kev on labelled examples. ick never blocks, it only warns.
+> **Status: early, warn-only.** Tested end to end in live Claude Code sessions with Kev-0.8B as the judge: both hooks fire, every judgment is logged, and `/ick:learn` builds a valid personal rulebook. It does not catch much yet. Out of the box, Kev-0.8B scores slop only a little higher than normal replies (about 0.45 against 0.35), so with the starter thresholds of 0.8 nothing gets flagged. The next steps are tuning thresholds on logged decisions and fine-tuning Kev on labelled examples. ick never blocks, it only warns.
 
 ## How it works
 
