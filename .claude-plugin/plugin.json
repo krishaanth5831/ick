@@ -1,0 +1,10 @@
+{
+  "name": "ick",
+  "version": "0.1.0",
+  "description": "Stops AI slop in Claude Code, judged against what you personally have pushed back on before.",
+  "author": {
+    "name": "Krishaanth Ramaraj"
+  },
+  "repository": "https://github.com/krishaanth5831/ick",
+  "license": "MIT"
+}

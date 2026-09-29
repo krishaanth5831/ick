@@ -1,0 +1,19 @@
+{
+  "name": "ick",
+  "owner": {
+    "name": "Krishaanth Ramaraj"
+  },
+  "metadata": {
+    "description": "Stops AI slop in Claude Code",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "ick",
+      "source": "./",
+      "description": "Stops AI slop in Claude Code, judged against what you personally have pushed back on before.",
+      "category": "productivity",
+      "tags": ["slop", "quality", "hooks", "jev"]
+    }
+  ]
+}

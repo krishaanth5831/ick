@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "note": "Starter rules for people with little Claude Code history. Thresholds are placeholders until tuned against real examples.",
+  "rules": [
+    {
+      "id": "unrequested_file",
+      "on": "file",
+      "question": "Is this file an extra document, log, template, plan or config that the user's request did not ask for?",
+      "threshold": 0.8
+    },
+    {
+      "id": "scope_creep",
+      "on": "file",
+      "question": "Does this change add infrastructure, abstractions, options or features beyond what the user's request needs?",
+      "threshold": 0.8
+    },
+    {
+      "id": "narrating_comments",
+      "on": "file",
+      "question": "Does this code contain comments that only restate what the code next to them already says?",
+      "threshold": 0.8
+    },
+    {
+      "id": "hidden_errors",
+      "on": "file",
+      "question": "Does this code catch errors and carry on silently, or fall back to a default, in a way that could hide a real failure?",
+      "threshold": 0.8
+    },
+    {
+      "id": "padding",
+      "on": "reply",
+      "question": "Is this reply clearly longer than the user's request needs, because of repetition, restated summaries or filler?",
+      "threshold": 0.8
+    },
+    {
+      "id": "pushy_ending",
+      "on": "reply",
+      "question": "Does the reply end by pushing a next step, deadline or follow-up question on the user that they did not ask for?",
+      "threshold": 0.8
+    },
+    {
+      "id": "unchecked_claims",
+      "on": "reply",
+      "question": "Does the reply state facts, numbers or results as certain without showing that they were checked?",
+      "threshold": 0.8
+    },
+    {
+      "id": "generic",
+      "on": "reply",
+      "question": "Is the content generic enough that it could have been written for almost any project or person?",
+      "threshold": 0.8
+    }
+  ]
+}
