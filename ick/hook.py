@@ -18,7 +18,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from ick import config, judge, rules, state, transcript  # noqa: E402
 
-MAX_CHARS = 20000
+# Kev was trained on states of about 1400 characters; longer text is cut to its start and end.
+MAX_CHARS = int(os.environ.get("ICK_MAX_STATE_CHARS", "1400"))
 
 
 def _written_content(tool_input: dict) -> str:
@@ -52,7 +53,11 @@ def run(payload: dict):
         return None
     request = transcript.last_user_prompt(path) if path else ""
     probs = judge.ask(
-        {"what_the_user_asked": request[:4000], "what_claude_wrote": content[:MAX_CHARS]},
+        {
+            "what_the_user_asked": judge.excerpt(request, MAX_CHARS // 4),
+            "what_claude_wrote": judge.excerpt(content, MAX_CHARS),
+            "length_in_words": len(content.split()),
+        },
         {r["id"]: r["question"] for r in active},
     )
     flagged = [f"{r['id']} ({probs[r['id']]:.0%})" for r in active if probs[r["id"]] >= r["threshold"]]
