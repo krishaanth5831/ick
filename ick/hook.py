@@ -46,6 +46,8 @@ def run(payload: dict):
         return None
 
     active = rules.load(kind)
+    if payload.get("tool_name") != "Write":
+        active = [r for r in active if not r.get("new_files_only")]
     if not content.strip() or not active:
         return None
     request = transcript.last_user_prompt(path) if path else ""

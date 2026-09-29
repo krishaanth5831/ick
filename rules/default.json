@@ -6,7 +6,8 @@
       "id": "unrequested_file",
       "on": "file",
       "question": "Is this file an extra document, log, template, plan or config that the user's request did not ask for?",
-      "threshold": 0.8
+      "threshold": 0.8,
+      "new_files_only": true
     },
     {
       "id": "scope_creep",

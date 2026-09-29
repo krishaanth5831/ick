@@ -4,7 +4,7 @@ A Claude Code plugin that catches AI slop, using your own definition of slop.
 
 Everyone finds different things sloppy. Some people hate long answers, some hate extra files nobody asked for, some hate comments that restate the code. ick doesn't guess. It reads your past Claude Code chats, finds the moments you pushed back, and turns them into your personal rulebook. From then on, a small, fast judge model checks what Claude writes against those rules.
 
-> **Status: early scaffold.** The on/off switch, the hook, the judge client and the chat scan work and are tested. Learning your rulebook from the scan is not built yet, so for now ick uses the starter rules in `rules/default.json`, and it only warns. It never blocks.
+> **Status: early scaffold.** The switch, hook, judge client and chat scan pass their tests against a fake judge, but have not yet run inside a live Claude Code session or against a real judge server. Learning your rulebook is not built, so ick uses the starter rules in `rules/default.json`, and it only warns. It never blocks.
 
 ## How it works
 

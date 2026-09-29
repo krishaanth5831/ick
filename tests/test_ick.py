@@ -95,6 +95,11 @@ class IckTest(unittest.TestCase):
         self.assertIn("unrequested_file", context)
         self.assertNotIn("scope_creep", context)
 
+    def test_new_file_rule_skips_edits(self):
+        self.run_script("toggle.py")
+        edit = {"hook_event_name": "PostToolUse", "tool_name": "Edit", "tool_input": {"old_string": "a", "new_string": "b"}}
+        self.assertIsNone(self.hook(edit))
+
     def test_reply_flag_is_shown_to_user(self):
         self.run_script("toggle.py")
         out = self.hook({"hook_event_name": "Stop", "stop_hook_active": False})
