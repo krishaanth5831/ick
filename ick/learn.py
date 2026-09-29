@@ -37,10 +37,13 @@ def _read(path):
 
 
 def pair_state(pair: dict) -> dict:
-    """The state the judge sees for one pair. sort and export must use the same one."""
+    """The state the judge sees for one pair. sort and export must use the same one.
+
+    Kev's trainer rejects states over 384 tokens; 700 + 350 characters stays under it.
+    """
     return {
-        "claude_wrote": judge.excerpt(pair["claude_text"], 900),
-        "user_replied": judge.excerpt(pair["user_reply"], 400),
+        "claude_wrote": judge.excerpt(pair["claude_text"], 700),
+        "user_replied": judge.excerpt(pair["user_reply"], 350),
     }
 
 
