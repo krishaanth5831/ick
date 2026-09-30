@@ -4,7 +4,7 @@ A Claude Code plugin that catches AI slop, using your own definition of slop.
 
 Everyone finds different things sloppy. Some people hate long answers, some hate extra files nobody asked for, some hate comments that restate the code. ick doesn't guess. It reads your past Claude Code chats, finds the moments you pushed back, and turns them into your personal rulebook. From then on, a small, fast judge model checks what Claude writes against those rules.
 
-> **Status: early, warn-only.** Tested end to end in live Claude Code sessions with Kev-0.8B as the judge: both hooks fire, every judgment is logged, and `/ick:learn` builds a valid personal rulebook. It does not catch much yet. Out of the box, Kev-0.8B scores slop only a little higher than normal replies (about 0.45 against 0.35), so with the starter thresholds of 0.8 nothing gets flagged. The next steps are tuning thresholds on logged decisions and fine-tuning Kev on labelled examples. ick never blocks, it only warns.
+> **Status: 0.2.0.** Prevention is the proven part: with ick on, Claude gets your rules before every reply, and in side-by-side tests replies were about 40 to 45% shorter with far less bold, headings and upselling. Kev is only used where it tested well: routing rules by reading your (short) prompt, checking just the last paragraph of a reply for nagging (held-out AUC 0.93), and checking whether you asked for a document before Claude writes one. Judging whole replies tested no better than chance, so those rules are prevention-only.
 
 ## How it works
 
@@ -30,8 +30,10 @@ Everyone finds different things sloppy. Some people hate long answers, some hate
 
 1. **Scan.** Claude Code keeps every session as a transcript in `~/.claude/projects/`. ick pairs each Claude reply with the message you sent next. Interrupting Claude, denying a tool call, or replying "no, too long" is a label you already gave for free.
 2. **Sort.** The judge answers two yes/no questions per pair: were you unhappy, and was it about style or quality rather than a bug? The second question keeps "that's broken" out of your slop rules.
-3. **Condense.** `/ick:learn` runs scan and sort, then has Claude group your slop moments into a short rulebook in `~/.ick/rules.json` and validate it. Complaints you repeated count more.
-4. **Enforce.** Each rule becomes a question for the judge. When Claude writes a file or ends a reply, ick asks every rule at once and reports the ones over their threshold.
+3. **Condense.** `/ick:learn` builds a reading list: rules you stated outright (memory notes, CLAUDE.md), every interruption and denied tool call, replies with pushback words, and the judge's top-ranked pairs. Claude reads it, groups the real complaints into a rulebook in `~/.ick/rules.json`, asks you what's missing, and validates it. Complaints you repeated count more.
+4. **Prevent.** Before every reply, Kev reads your prompt and picks which topic rules apply (ideas, explanations, facts, visuals). Claude gets those plus the always-on rules as instructions. If Kev is down, every rule is sent.
+5. **Check mid-task.** When Claude writes a new document file (`.md`, `.txt`, ...), Kev checks whether your prompt asked for one. If not, Claude is told before its next step.
+6. **Check the reply.** Code checks catch em dashes and "Next action" endings. Kev reads only the last paragraph to catch offers and follow-up questions you didn't ask for. A hit is shown to you and carried into Claude's next reply as a reminder. Rules marked `"action": "block"` (or everything, with `ICK_MODE=block`) send Claude back to fix the part that broke the rule, but a fix can only add text below what you already saw.
 
 ## The judge
 

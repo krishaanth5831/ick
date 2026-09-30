@@ -1,6 +1,6 @@
 {
   "name": "ick",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Stops AI slop in Claude Code, judged against what you personally have pushed back on before.",
   "author": {
     "name": "Krishaanth Ramaraj"

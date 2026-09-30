@@ -1,6 +1,17 @@
 {
-  "description": "ick: judge Claude's new files and final replies for slop",
+  "description": "ick: tell Claude the user's slop rules, and judge its new files and final replies",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/ick/hook.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit",

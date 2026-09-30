@@ -1,54 +1,61 @@
 {
-  "version": 1,
-  "note": "Starter rules for people with little Claude Code history. Thresholds are placeholders until tuned against real examples.",
+  "version": 2,
+  "note": "Starter rules for people with little Claude Code history. Only nagging, em dashes and unrequested document files are checked after the fact, because those are the checks Kev-0.8B passed in testing. The rest are prevention-only.",
   "rules": [
     {
       "id": "unrequested_file",
       "on": "file",
-      "question": "Is this file an extra document, log, template, plan or config that the user's request did not ask for?",
-      "threshold": 0.8,
+      "question": "Is this file a document, template, log or plan the user did not ask for?",
+      "avoid": "Only create files the user asked for. Give plans, prompts and explanations in chat unless asked to save them.",
+      "checks": ["doc_not_requested"],
+      "threshold": 0.6,
       "new_files_only": true
     },
     {
       "id": "scope_creep",
       "on": "file",
-      "question": "Does this change add infrastructure, abstractions, options or features beyond what the user's request needs?",
-      "threshold": 0.8
-    },
-    {
-      "id": "narrating_comments",
-      "on": "file",
-      "question": "Does this code contain comments that only restate what the code next to them already says?",
-      "threshold": 0.8
-    },
-    {
-      "id": "hidden_errors",
-      "on": "file",
-      "question": "Does this code catch errors and carry on silently, or fall back to a default, in a way that could hide a real failure?",
+      "question": "Does this change add infrastructure, abstractions, options or features beyond what the request needs?",
+      "avoid": "Make only the change that was asked for. No extra features, config or abstractions.",
+      "judge": false,
       "threshold": 0.8
     },
     {
       "id": "padding",
       "on": "reply",
-      "question": "Is this reply clearly longer than the user's request needs, because of repetition, restated summaries or filler?",
+      "question": "Is this reply clearly longer than the request needs, because of repetition, restated summaries or filler?",
+      "avoid": "Answer in as few words as the request allows. No restated summaries or filler.",
+      "judge": false,
       "threshold": 0.8
     },
     {
       "id": "pushy_ending",
       "on": "reply",
-      "question": "Does the reply end by pushing a next step, deadline or follow-up question on the user that they did not ask for?",
-      "threshold": 0.8
+      "question": "Does this closing text offer more help, ask the user for more details, or suggest a follow-up the user did not ask for?",
+      "criteria": {"true": "An offer, question or invitation to continue", "false": "A plain statement, note, caveat or the end of the content"},
+      "avoid": "Don't end with offers, next steps or questions the user didn't ask for.",
+      "judge": true,
+      "part": "end",
+      "checks": ["next_action_line"],
+      "threshold": 0.6
     },
     {
       "id": "unchecked_claims",
       "on": "reply",
-      "question": "Does the reply state facts, numbers or results as certain without showing that they were checked?",
+      "question": "Does the reply state facts or numbers as certain without showing that they were checked?",
+      "avoid": "Only state facts you have checked, and mark estimates clearly.",
+      "when": "Does a good answer depend on real-world facts, numbers, statistics or market data?",
+      "when_threshold": 0.4,
+      "judge": false,
       "threshold": 0.8
     },
     {
       "id": "generic",
       "on": "reply",
       "question": "Is the content generic enough that it could have been written for almost any project or person?",
+      "avoid": "Be specific to this user's situation. Avoid obvious, generic ideas.",
+      "when": "Is the user asking for ideas, names, suggestions or other creative options?",
+      "when_threshold": 0.45,
+      "judge": false,
       "threshold": 0.8
     }
   ]
