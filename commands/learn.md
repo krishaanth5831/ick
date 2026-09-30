@@ -18,12 +18,24 @@ Build the user's personal slop rulebook. Commands below are run with the Bash to
    - `on`: `"file"` for things written into files, `"reply"` for chat replies.
    - `threshold`: 0.8.
    - `why`: one line in your own words. Never copy the user's messages anywhere in the file, since it may be shared.
+   - How the rule is used. The judge (Kev) is only reliable on short text, so most rules are prevention-only:
+     - Default: `"judge": false`. The rule is only sent to Claude before it answers.
+     - If the rule only matters for some kinds of request, add `when`: a yes/no question about the user's prompt, and `when_threshold`: 0.45. The rule is then only sent when Kev thinks the prompt is about that. Use these proven questions where they fit:
+       - ideas: "Is the user asking for ideas, names, suggestions or other creative options?"
+       - explanations: "Is the user asking to have a concept or topic explained to them?"
+       - facts: "Does a good answer depend on real-world facts, numbers, statistics or market data?" (when_threshold 0.4)
+       - visuals: "Is the user asking for slides, a presentation, a web page or another visual design?" (when_threshold 0.35)
+       Rules about length, endings, formatting and unrequested files should have no `when`, so they are always sent.
+     - For unrequested documents, add `"checks": ["doc_not_requested"]` and `"threshold": 0.6` to a `"file"` rule.
+     - For a nagging ending, use `"judge": true, "part": "end", "checks": ["next_action_line"], "threshold": 0.6` and this exact `question`: "Does this closing text offer more help, ask the user for more details, or suggest a follow-up the user did not ask for?"
+     - For em dashes, add `"checks": ["em_dash"]`.
+     - Leave `action` out (warn). Only the user decides to set `"action": "block"`.
 6. Write the rules to `rules.json` in the same folder as `candidates.md`:
 
 ```json
-{"version": 1, "rules": [
+{"version": 2, "rules": [
   {"id": "short_snake_case", "on": "reply", "question": "...", "avoid": "...",
-   "criteria": {"true": "...", "false": "..."}, "threshold": 0.8, "why": "..."}
+   "criteria": {"true": "...", "false": "..."}, "judge": false, "threshold": 0.8, "why": "..."}
 ]}
 ```
 
