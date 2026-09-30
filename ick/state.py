@@ -16,18 +16,27 @@ def _load() -> dict:
         return {"enabled": []}
 
 
+def _covering(project: str, enabled: list) -> list:
+    """Enabled folders that contain `project` (itself or a parent)."""
+    project = os.path.realpath(project)
+    return [e for e in enabled if project == e or project.startswith(e.rstrip(os.sep) + os.sep)]
+
+
 def is_on(project: str) -> bool:
-    return os.path.realpath(project) in _load()["enabled"]
+    return bool(_covering(project, _load()["enabled"]))
 
 
 def toggle(project: str) -> bool:
-    """Flip the switch for a project and return the new state."""
-    project = os.path.realpath(project)
+    """Flip the switch for a project and return the new state.
+
+    Turning off from a subfolder turns off the enabled folder that covers it.
+    """
     data = _load()
-    if project in data["enabled"]:
-        data["enabled"].remove(project)
+    covering = _covering(project, data["enabled"])
+    if covering:
+        data["enabled"] = [e for e in data["enabled"] if e not in covering]
     else:
-        data["enabled"].append(project)
+        data["enabled"].append(os.path.realpath(project))
     _path().parent.mkdir(parents=True, exist_ok=True)
     _path().write_text(json.dumps(data, indent=2))
     return project in data["enabled"]

@@ -1,9 +1,9 @@
-"""python3 -m ick scan | sort | label | export | check"""
+"""python3 -m ick scan | sort | candidates | label | export | check"""
 import sys
 
 from ick import config, learn, rules
 
-USAGE = "usage: python3 -m ick scan | sort | label | export | check"
+USAGE = "usage: python3 -m ick scan | sort | candidates | label | export | check"
 
 
 def main() -> None:
@@ -11,8 +11,8 @@ def main() -> None:
     if cmd == "sort" and not config.jev_url():
         sys.exit("Set ICK_JEV_URL first (see README).")
     commands = {
-        "scan": learn.scan, "sort": learn.sort, "label": learn.label,
-        "export": learn.export, "check": rules.check,
+        "scan": learn.scan, "sort": learn.sort, "candidates": learn.candidates,
+        "label": learn.label, "export": learn.export, "check": rules.check,
     }
     if cmd not in commands:
         sys.exit(USAGE)

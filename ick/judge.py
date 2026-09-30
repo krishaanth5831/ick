@@ -21,7 +21,8 @@ def excerpt(text: str, limit: int) -> str:
 def ask(state, questions: dict, timeout: float = None) -> dict:
     """Ask yes/no questions about `state`. Returns {question_id: probability of yes}.
 
-    `questions` maps an id to the question text. Raises on network or API errors;
+    `questions` maps an id to the question text, or to {"instructions", "criteria"} where
+    criteria describes what counts as true and false. Raises on network or API errors;
     callers decide whether that should fail open.
     """
     if timeout is None:
@@ -29,7 +30,10 @@ def ask(state, questions: dict, timeout: float = None) -> dict:
     body = {
         "model": config.jev_model(),
         "state": state,
-        "questions": {qid: {"type": "noul", "instructions": text} for qid, text in questions.items()},
+        "questions": {
+            qid: {"type": "noul", **(q if isinstance(q, dict) else {"instructions": q})}
+            for qid, q in questions.items()
+        },
     }
     headers = {"content-type": "application/json"}
     if config.jev_key():

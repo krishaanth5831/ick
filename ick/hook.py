@@ -1,7 +1,10 @@
-"""Hook entry point for PostToolUse (Write/Edit) and Stop.
+"""Hook entry point for UserPromptSubmit, PostToolUse (Write/Edit) and Stop.
 
-Warn-only for now: a flagged file edit is passed back to Claude as context,
-and a flagged reply is shown to the user. Nothing is blocked yet.
+- UserPromptSubmit: prevention. Tells Claude the user's slop rules before it
+  answers. Needs no judge.
+- PostToolUse: a flagged file edit is passed back to Claude as context.
+- Stop: a flagged reply is shown to the user (ICK_MODE=warn, the default), or
+  sent back to Claude to revise once (ICK_MODE=block).
 
 Fails open: if ick is off, no judge is set up, or anything goes wrong, the
 hook prints nothing and Claude carries on. Errors go to ICK_HOME/hook.log so
@@ -30,11 +33,35 @@ def _written_content(tool_input: dict) -> str:
     return "\n".join(e.get("new_string", "") for e in tool_input.get("edits", []))
 
 
+def _project(payload: dict) -> str:
+    """The session's project root. The payload cwd drifts when Claude changes directory."""
+    return os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or os.getcwd()
+
+
+def _prevent() -> dict:
+    lines = [f"- {r.get('avoid') or r['question']}" for r in rules.load("file") + rules.load("reply")]
+    context = (
+        "The user runs ick, a slop filter. These are things this user has pushed back on before. "
+        "Avoid them in this reply and in any files you write:\n" + "\n".join(lines)
+    )
+    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}
+
+
+def _question(rule: dict):
+    if "criteria" in rule:
+        return {"instructions": rule["question"], "criteria": rule["criteria"]}
+    return rule["question"]
+
+
 def run(payload: dict):
     """Return the hook's JSON output as a dict, or None to stay silent."""
-    if not state.is_on(payload.get("cwd") or os.getcwd()) or not config.jev_url():
+    if not state.is_on(_project(payload)):
         return None
     event = payload.get("hook_event_name")
+    if event == "UserPromptSubmit":
+        return _prevent()
+    if not config.jev_url():
+        return None
     path = payload.get("transcript_path")
 
     if event == "PostToolUse":
@@ -58,23 +85,28 @@ def run(payload: dict):
             "what_claude_wrote": judge.excerpt(content, MAX_CHARS),
             "length_in_words": len(content.split()),
         },
-        {r["id"]: r["question"] for r in active},
+        {r["id"]: _question(r) for r in active},
     )
-    flagged = [f"{r['id']} ({probs[r['id']]:.0%})" for r in active if probs[r["id"]] >= r["threshold"]]
+    hits = [r for r in active if probs[r["id"]] >= r["threshold"]]
     # Every judgment is kept so thresholds can later be tuned on real data.
     with (config.home() / "decisions.jsonl").open("a") as f:
         f.write(json.dumps({
             "time": datetime.datetime.now().isoformat(timespec="seconds"),
-            "event": event, "tool": payload.get("tool_name"), "project": payload.get("cwd"),
-            "probs": {k: round(v, 3) for k, v in probs.items()}, "flagged": bool(flagged),
+            "event": event, "tool": payload.get("tool_name"), "project": _project(payload),
+            "probs": {k: round(v, 3) for k, v in probs.items()}, "flagged": bool(hits),
         }) + "\n")
-    if not flagged:
+    if not hits:
         return None
 
-    message = "ick flagged possible slop: " + ", ".join(flagged)
+    names = ", ".join(f"{r['id']} ({probs[r['id']]:.0%})" for r in hits)
+    fixes = "\n".join(f"- {r.get('avoid') or r['question']}" for r in hits)
     if event == "PostToolUse":
-        return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": message}}
-    return {"systemMessage": message}
+        return {"hookSpecificOutput": {"hookEventName": "PostToolUse",
+                                       "additionalContext": f"ick flagged possible slop: {names}. The user wants:\n{fixes}"}}
+    if os.environ.get("ICK_MODE", "warn") == "block":
+        return {"decision": "block",
+                "reason": f"ick flagged your last reply as possible slop ({names}). Rewrite it so that:\n{fixes}"}
+    return {"systemMessage": f"ick flagged possible slop: {names}"}
 
 
 def main() -> None:

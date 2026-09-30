@@ -2,13 +2,15 @@
 
   scan:   pair every Claude turn with the message you sent next   -> ICK_HOME/pairs.jsonl
   sort:   ask the judge which replies were slop complaints          -> ICK_HOME/slop.jsonl
+  candidates: everything worth reading when writing the rulebook    -> ICK_HOME/candidates.md
   label:  label pairs by hand (slop / bug / fine)                   -> ICK_HOME/labels.jsonl
   export: turn your labels into Kev fine-tuning records             -> ICK_HOME/kev/records.jsonl
 
-Condensing slop.jsonl into ICK_HOME/rules.json is done by the /ick:learn command.
+Condensing candidates.md into ICK_HOME/rules.json is done by the /ick:learn command.
 """
 import json
 import pathlib
+import re
 
 from ick import config, judge, transcript
 
@@ -21,6 +23,11 @@ SORT_QUESTIONS = {
         "made-up details) rather than about a bug, an error, or something not working?"
     ),
 }
+
+# Words that usually mean the user is pushing back. Only used to pick what Claude reads, never to decide.
+PUSHBACK = re.compile(
+    r"\b(no|don'?t|dont|stop|why|wrong|instead|too|again|still|never|remove|get rid|shorter|simpler|"
+    r"slop|generic|fluff|bloat\w*|ramble|annoying|verbose|long|useless|not what)\b", re.I)
 
 # What each hand label means for the two sort questions.
 LABEL_ANSWERS = {
@@ -106,4 +113,58 @@ def export() -> pathlib.Path:
             f.write(json.dumps({"state": pair_state(l), "questions": questions}) + "\n")
     counts = {k: sum(l["label"] == k for l in labels) for k in LABEL_ANSWERS}
     print(f"{len(labels)} records written to {out} ({counts})")
+    return out
+
+
+def _explicit_rules(home=None):
+    """Things the user told Claude outright: memory feedback notes and their global CLAUDE.md."""
+    home = home or pathlib.Path.home()
+    files = sorted((home / ".claude" / "projects").glob("*/memory/feedback_*.md"))
+    files += [f for f in [home / ".claude" / "CLAUDE.md"] if f.exists()]
+    return [(f, f.read_text(errors="replace")[:1500]) for f in files]
+
+
+def candidates(limit: int = 250) -> pathlib.Path:
+    """Write a compact reading list for the rulebook step.
+
+    The judge only ranks here. Claude reads everything picked and decides itself, because a
+    small judge misses most complaints and misreads new requests as complaints.
+    """
+    pairs = _read(config.home() / "slop.jsonl") or _read(config.home() / "pairs.jsonl")
+
+    def score(p):
+        probs = p.get("probs") or {}
+        return probs.get("unhappy", 0) * probs.get("about_slop", 0)
+
+    picked, seen = [], set()
+
+    def take(p, why):
+        if p["user_reply"] not in seen and len(picked) < limit:
+            seen.add(p["user_reply"])
+            picked.append((p, why))
+
+    for p in pairs:
+        if p.get("interrupted") or p.get("tool_denied"):
+            take(p, "interrupted" if p.get("interrupted") else "tool denied")
+    for p in pairs:
+        if PUSHBACK.search(p["user_reply"][:500]):
+            take(p, "pushback words")
+    for p in sorted(pairs, key=score, reverse=True)[:120]:
+        take(p, f"judge score {score(p):.2f}")
+
+    explicit = _explicit_rules()
+    out = config.home() / "candidates.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w") as f:
+        f.write("# ick candidates\n\n## What the user told Claude directly\n\n")
+        for path, text in explicit:
+            f.write(f"### {path.name}\n{text.strip()}\n\n")
+        f.write(f"## {len(picked)} past exchanges worth reading (of {len(pairs)})\n\n")
+        for i, (p, why) in enumerate(picked, 1):
+            tools = ", ".join(str(t.get("tool")) for t in p.get("claude_tools", [])[-5:])
+            f.write(f"### {i} ({why})\nCLAUDE: {judge.excerpt(p['claude_text'], 500)}\n")
+            if tools:
+                f.write(f"TOOLS: {tools}\n")
+            f.write(f"USER: {p['user_reply'][:600]}\n\n")
+    print(f"{len(picked)} exchanges and {len(explicit)} explicit rule files written to {out}")
     return out

@@ -36,6 +36,12 @@ def validate(path) -> list:
             problems.append(f'{where}: "on" must be "file" or "reply"')
         if not isinstance(r.get("question"), str) or not r["question"].strip():
             problems.append(f"{where}: question must be a non-empty string")
+        if "avoid" in r and (not isinstance(r["avoid"], str) or not r["avoid"].strip()):
+            problems.append(f"{where}: avoid must be a non-empty string")
+        c = r.get("criteria")
+        if c is not None and (not isinstance(c, dict) or not c or set(c) - {"true", "false"}
+                              or not all(isinstance(v, str) for v in c.values())):
+            problems.append(f'{where}: criteria must be {{"true": "...", "false": "..."}}')
         t = r.get("threshold")
         if not isinstance(t, (int, float)) or isinstance(t, bool) or not 0 < t < 1:
             problems.append(f"{where}: threshold must be a number between 0 and 1")

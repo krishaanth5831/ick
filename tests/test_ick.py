@@ -122,6 +122,44 @@ class IckTest(unittest.TestCase):
         self.assertEqual(rows[-1]["event"], "PostToolUse")
         self.assertTrue(rows[-1]["flagged"])
 
+    def test_prompt_gets_rules_injected_without_a_judge(self):
+        self.run_script("toggle.py")
+        env = {k: v for k, v in self.env.items() if k != "ICK_JEV_URL"}
+        out = self.hook({"hook_event_name": "UserPromptSubmit", "prompt": "give me ideas"}, env)
+        context = out["hookSpecificOutput"]["additionalContext"]
+        self.assertEqual(out["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
+        self.assertIn("Avoid them", context)
+
+    def test_no_injection_when_off(self):
+        self.assertIsNone(self.hook({"hook_event_name": "UserPromptSubmit", "prompt": "hi"}))
+
+    def test_subfolder_of_enabled_project_is_on(self):
+        self.run_script("toggle.py")
+        sub = self.project / "src" / "deep"
+        sub.mkdir(parents=True)
+        out = self.hook({**self.write_event(), "cwd": str(sub)})
+        self.assertIn("unrequested_file", out["hookSpecificOutput"]["additionalContext"])
+
+    def test_turning_off_from_subfolder_turns_off_project(self):
+        self.run_script("toggle.py")
+        sub = self.project / "src"
+        sub.mkdir()
+        result = subprocess.run([sys.executable, str(ROOT / "ick" / "toggle.py")],
+                                capture_output=True, text=True, cwd=sub, env=self.env)
+        self.assertIn("OFF", result.stdout)
+        self.assertIsNone(self.hook(self.write_event()))
+
+    def test_block_mode_sends_reply_back_to_claude(self):
+        self.run_script("toggle.py")
+        out = self.hook({"hook_event_name": "Stop", "stop_hook_active": False}, {**self.env, "ICK_MODE": "block"})
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("Rewrite it", out["reason"])
+
+    def test_block_mode_does_not_loop(self):
+        self.run_script("toggle.py")
+        env = {**self.env, "ICK_MODE": "block"}
+        self.assertIsNone(self.hook({"hook_event_name": "Stop", "stop_hook_active": True}, env))
+
     def test_reply_flag_is_shown_to_user(self):
         self.run_script("toggle.py")
         out = self.hook({"hook_event_name": "Stop", "stop_hook_active": False})
@@ -173,6 +211,9 @@ class RulesTest(unittest.TestCase):
         path = pathlib.Path(tempfile.mkdtemp()) / "rules.json"
         path.write_text(json.dumps({"rules": [{"id": "a", "on": "chat", "question": "", "threshold": 2}]}))
         self.assertEqual(len(rules.validate(path)), 3)
+        path.write_text(json.dumps({"rules": [{"id": "a", "on": "reply", "question": "q", "threshold": 0.5,
+                                               "avoid": "", "criteria": {"yes": "x"}}]}))
+        self.assertEqual(len(rules.validate(path)), 2)
         path.write_text("{not json")
         self.assertIn("cannot read", rules.validate(path)[0])
 
