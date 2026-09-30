@@ -4,7 +4,7 @@ A Claude Code plugin that catches AI slop, using your own definition of slop.
 
 Everyone finds different things sloppy. Some people hate long answers, some hate extra files nobody asked for, some hate comments that restate the code. ick doesn't guess. It reads your past Claude Code chats, finds the moments you pushed back, and turns them into your personal rulebook. From then on, a small, fast judge model checks what Claude writes against those rules.
 
-> **Status: early, warn-only.** Tested end to end in live Claude Code sessions with Kev-0.8B as the judge: both hooks fire, every judgment is logged, and `/ick:learn` builds a valid personal rulebook. It does not catch much yet. Out of the box, Kev-0.8B scores slop only a little higher than normal replies (about 0.45 against 0.35), so with the starter thresholds of 0.8 nothing gets flagged. The next steps are tuning thresholds on logged decisions and fine-tuning Kev on labelled examples. ick never blocks, it only warns.
+> **Status: early.** Prevention works: while ick is on, Claude is told your rules before every reply. In a side-by-side test, the same beginner question got a 21% shorter, simpler answer with no upsell at the end. Detection does not work yet: on labelled replies from real chats, Kev-0.8B separates slop from normal replies no better than chance, so replies are only warned about (never blocked by default) and the thresholds stay high. Fine-tuning Kev on the rule questions is the next step.
 
 ## How it works
 
@@ -30,8 +30,9 @@ Everyone finds different things sloppy. Some people hate long answers, some hate
 
 1. **Scan.** Claude Code keeps every session as a transcript in `~/.claude/projects/`. ick pairs each Claude reply with the message you sent next. Interrupting Claude, denying a tool call, or replying "no, too long" is a label you already gave for free.
 2. **Sort.** The judge answers two yes/no questions per pair: were you unhappy, and was it about style or quality rather than a bug? The second question keeps "that's broken" out of your slop rules.
-3. **Condense.** `/ick:learn` runs scan and sort, then has Claude group your slop moments into a short rulebook in `~/.ick/rules.json` and validate it. Complaints you repeated count more.
-4. **Enforce.** Each rule becomes a question for the judge. When Claude writes a file or ends a reply, ick asks every rule at once and reports the ones over their threshold.
+3. **Condense.** `/ick:learn` builds a reading list: rules you stated outright (memory notes, CLAUDE.md), every interruption and denied tool call, replies with pushback words, and the judge's top-ranked pairs. Claude reads it, groups the real complaints into a rulebook in `~/.ick/rules.json`, asks you what's missing, and validates it. Complaints you repeated count more.
+4. **Prevent.** Before every reply, ick tells Claude your rules as instructions (each rule's `avoid` line). This needs no judge.
+5. **Check.** When Claude writes a file or ends a reply, the judge scores it against every rule. File hits go back to Claude. Reply hits are shown to you, or with `ICK_MODE=block` sent back to Claude for one rewrite. Only turn blocking on once your thresholds are tuned.
 
 ## The judge
 
